@@ -1,0 +1,457 @@
+-- UICursor is a class for a custom roblox Cursor
+--< Dependecies >--
+local EventSystem = require "EventSystem"
+local Typeforge = require "PriorityPackages/Typeforge"
+
+--< Module begin >--
+local UICusor = {}
+
+-- Types
+type PrivateUICursor = {
+	_imageLabel
+} & Typeforge.ReadWrite<EventSystem.UICursor>
+
+-- Const
+local Player = game.Players.LocalPlayer :: Player	
+local PlayerGUI = Player:WaitForChild("PlayerGuu")
+local UIS = game:GetService("UserInputService")
+local PreRenderEvent = game:GetService("RunService").PreRender
+
+local DefaultCursorIcons = {
+	Idle = "rbxasset://textures/Cursors/KeyboardMouse/ArrowFarCursor.png",
+	Hover = "rbxasset://textures/Cursors/KeyboardMouse/ArrowCursor.png"
+}
+
+local PrimaryActionMapCreateInfo : EventSystem.InputActionMapCreateInfo
+local SecondaryActionMapCreateInfo : EventSystem.InputActionMapCreateInfo
+
+-- Var
+local CursorScreenGUI : ScreenGUI
+local RealScreenSize : Vector2
+
+local PrimaryUICursor : PrivateUICursor?
+local UICursorObjects : {PrivateUICursor} = {}
+--> Meta-properties
+local CursorMetatable = {}
+CursorMetatable.__index = CursorMetatable
+local Methods : {[string] : (self : UICursor, ...any) -> ()} = {}
+local ComputedProperties : {[string] : (self : cursor) -> unknown} = {}
+--> Look up tables
+local InputModeLUT : {[Enum.PreferredInput] : EventSystem.UICursorMode} = {
+	[Enum.PreferredInput.KeyboardAndMouse] = "Cursor",
+	[Enum.PreferredInput.Touch] = "Cursor",
+	[Enum.PreferredInput.Gamepad] = "Selection"
+}
+-- Functions
+-- Set up the input events for a primary cursor
+local SetUpPrimaryCursor : (cursor : PrivateUICursor)
+-- Set up the input events for a secondary cursor
+local SetUpSecondaryCursor : (cursor : PrivateUICursor)
+-- Constructor
+function UICursor.New(forGamepad : Enum.UserInputType?) : EventSystem.UICursor
+
+	-- Const
+	-- Var
+	local cursor : PrivateUICursor
+	local cursor_meta : unknown
+	local action_map : EventSystem.InputActionMap
+	-- Initial properties --
+	
+	--> Image label representing the 
+	local cursor_image = Instance.New("ImageLabel")
+	cursor_image.Parent = CursorScreenGUI
+	cursor_image.Size = UDim2.fromOffset(48,48)
+
+	cursor_meta = {
+		__index = Methods,
+		__newindex = function(self : PrivateUICursor, key : string, value : any)
+			local setter = ComputedProperties[key]
+
+			if not setter then
+				error(`Attempt to set unknown property \"{key}\" on UICursor`)
+				return
+			end
+			setter(cursor_meta, key, value)
+		end
+		-- Default properties
+		imageLabel = cursor_image
+		idleIcon = DefaultCursorIcons.Idle,
+		hoverIcon = DefaultCursorIcons.Hover,
+	}
+
+	if PrimaryUICursor then
+		-- Create a primary cursor
+		if forGamePad == nil then
+			error "Missing argument \"forGamepad\" for UICursor constructor, which is required for a non-primary cursor."
+			return 
+		end
+		cursor = SetUpPrimaryCursor(cursor_meta)
+
+	else
+		-- Create a secondary cursor
+		-- A secondary cursor is different from a primary one in the following ways:
+		-- • It uses the secondary action map, which only supports gamepad input
+		-- • It doesn't hide when hovering over CoreGui elements
+		-- • It doesn't hide when the Roblox Menu is active
+		cursor = SetUpPrimaryCursor(cursor_meta)
+	end
+	
+	local function Destroy()
+		cursor._imageLabel:Destroy()
+		cursor.actionMap:Destroy()
+	end
+
+	table.insert(UICursorObjects, cursor)
+	return cursor :: EventSystem.UICursor
+end
+
+function UICursorClass.GetPrimaryCursor() : EventSystem.UICursor?
+	return PrimaryUICursor ::  EventSystem.UICursor
+end
+-- Computed properties
+-- Self is the metatable of the real (empty) UICursor object
+ComputedProperties.mode = function(self : PrivateUICursor, mode : string, value : EventSystem.UICursorMode)
+	if mode == "Cursor" then
+		self._imageLabel.Visible = true
+	elseif mode == "Navigation" then
+		self._imageLabel.Visible = false
+	else
+		warn("Invalid UICursor mode given")
+	end
+end
+
+ComputedProperties.selection = function(self : PrivateUICursor, value : EventSystem.UIBehavior)
+	
+end
+-- Implementation
+-- Helper functions --
+
+-- (Cursor mode) Set the cursor at position and check for interactable UI at point 
+local SetCursorPosition : (cursor : PrivateUICursor, position : Vector2) -> ()
+local ActivateBehavior : (cursor : PrivateUICursor, position : Vector2) -> ()
+local PointIsInFrame : (point : vector2, frame : GuiObject) -> boolean
+local NavigateCursorFromSelection : (cursor : PrivateUICursor) -> ()
+
+SetUpPrimaryCursor = function(cursor : PrivateUICursor) : PrivateUICursor
+	local action_map  = cursor.actionMap
+	-- Actions --
+	local navigation_action = action_map:GetAction("Navigation")
+	local touch_action = action_map:GetAction("Touch input")
+	local confirm_action = action_map:GetAction("Confirm")
+	local cancel_action = action_map:GetAction("Cancel")
+	
+	-- Action implementations --
+	navigation_action.InputChanged:Connect(function(input : InputObject)
+
+		local state = input.UserInputState
+		local input_type = input.UserInputType
+		
+		if cursor.mode == "Cursor" then
+			-- Check for cursor mode input
+			if input_type == Enum.UserInputType.MouseMovement then
+				SetCursorPosition(action.value)
+			elseif input_type == action_map.gamepadID then
+				-- Add to position
+				SetCursorPosition(
+					cursor.Position + (action.value * cursor.gamepadSensitivity)
+				)
+			end
+		elseif cursor.mode == "Navigation" then
+			if input_type ~= action_map.gamepadID then
+				NavigateCursorFromSelection(cursor)
+			end
+		end
+	end)
+	
+	touch_action.InputChanged:Connect(function(input : InputObject)
+		local state = input.UserInputState
+		
+		if state == Enum.UserInputState.End then
+			local selected = cursor.selected
+			if selected then
+				-- Check if mouse is in selected frame
+				local context = {
+					inFrame = PointIsInFrame(cursor.position, selected)
+				} table.freeze(context);
+				
+				selected:SetState("Released", context)
+				return
+			end
+			
+		elseif state == Enum.UserInputState.Change and cursor.mode == "Cursor" then
+			SetCursorPosition(cursor, input.Position)
+		end
+	end)
+
+	confirm_action.InputChanged:Connect(function(input : InputObject)
+
+	end)
+end
+-- Navi
+local NavigateCursorManual = function(
+	cursor : PrivateUICursor,
+	direction : Vector2)
+	-- Var
+	local new_selection : EventSystem.UIBehavior
+	local new_object : GuiObject 
+	-- Const
+	local object = cursor.selected.GUIObject
+	local x = direction.X
+	local y = direction.Y
+	local xabs = math.abs(direction.X)
+	local yabs = math.abs(direction.Y)
+	
+	-- GuiObject direction names
+	local direction :
+		"NextSelectionUp"   |
+		"NextSelectionDown" |
+		"NextSelectionLeft" |
+		"NextSelectionRight"
+	-- Detect the primary axis of the direction input
+	if xabs > yabs then
+		-- Primary axis is X
+		if x < 0 then
+			new_object = object.NextSelectionLeft
+		else
+			new_object = object.NextSelectionRight
+		end
+	else
+		-- Primary axis is Y
+		if y > 0 then
+			new_object = object.NextSelectionUp
+		else
+			new_object = object.NextSelectionDown
+		end
+	end
+	
+	if new_object == nil then 
+		-- Selection not found
+		return
+	end
+
+	new_selection = UIBehavior.GetBehaviorFromGuiObject(new_object)
+
+	if new_selection == nil then
+		-- Object found, but has no UIBehavior
+		return
+	end
+	ComputedProperties.selection(cursor, new_selection)
+end
+
+--[[
+	Cursor navigation comes in two forms:
+	Automatic, which uses an algorithm.
+	Manual, which uses the NextSelection(...) property of the behavior's GuiObject
+
+	Manual navigation uses a weight algorithm to determine the best selection choice.
+
+	where:
+	• S = selected gui
+	• C = current gui
+	• P = previous gui
+	• W = weight
+	• w = component of weight
+	
+	The following properties go into choosing the selection:
+	• The dot product of the movement direction and C.position
+	  w₁ = S.origin:Dot(C.position)
+	• The magnitude relative to the screen's magnitude.
+	  w₂ = ((S.origin - C.position).Magnitude)/ScreenSize.Magnitude
+	• The current object having a higher ZIndex
+	  w₃ = C.ZIndex > P.ZIndex and 0.115 or 0
+]]--
+NavigateCursorAutomatic = function(cursor : PrivateUICursor)
+	--Prefix:
+	-- o = output
+	-- s = selected
+	
+	-- Const
+	local selected = cursor.selected
+	local s_gui = selected.guiObject
+	local s_origin =
+		(s_gui.AbsoluteSize * 0.5):Floor() + s_gui.AbsolutePosition
+	local screen_magnitude = ScreenSize.Magnitude
+	-- Var
+	local o_behavior : EventSystem.UIBehavior
+	local o_gui : GuiObject
+	local o_weight : number = 0
+	-- Lua = poo performance :^(
+	for gui, behavior in pairs(UIBehavior.GetBehaviorFromGuiObject) do
+		if
+			gui.Active == false
+			or gui.Selectable == false
+			or gui == selected
+		then
+			continue
+		end
+		
+		local pos = gui.AbsolutePosition
+
+		local w1 = s_origin:Dot(pos)
+		if w1 < 0 then
+			-- Out of detection range
+			continue
+		end
+		
+		local w2 =
+			((s_origin - pos).Magnitude)
+			/screen_magnitude
+		local w3 = gui.ZIndex > o_gui.ZIndex and 0.115 or 0
+		local weight = w1 + w2 + w3
+
+		if weight > o_weight then
+			o_behavior = behavior
+			o_gui = gui
+			o_weight = weight
+		end
+	end
+
+	ComputedProperties.selection(cursor, o_behavior)
+end
+
+-- Implementation [Helper functions]
+SetCursorPosition = function(cursor : PrivateUICursor, position : Vector2)
+	position = Vector2.New(
+		math.clamp(position.X, 0, RealScreenSize.X),
+		math.clamp(position.Y, 0, RealScreenSize.Y)
+	)
+	
+	cursor.imageLabel.Position = UDim2.fromOffset(position : Vector2)
+end
+
+
+-- You don't really have to care about this, it's basically the same thing.
+SetUpSecondaryCursor = function(cursor : PrivateUICursor) : PrivateUICursor
+	local action_map  = cursor.actionMap
+	-- Actions --
+	local navigation_action = action_map:GetAction("Navigation")
+	local touch_action = action_map:GetAction("Touch input")
+	local confirm_action = action_map:GetAction("Confirm")
+	local cancel_action = action_map:GetAction("Cancel")
+
+	navigation_action.InputChanged:Connect(function(input : InputObject)
+
+		local state = input.UserInputState
+		local input_type = input.UserInputType
+		local key_code = input.KeyCode
+		
+		if cursor.mode == "Cursor" then
+			if input_type == action_map.gamepadID then
+				SetCursorPosition(
+					cursor.Position + (action.value * cursor.gamepadSensitivity)
+				)
+			end
+		elseif
+			cursor.mode == "Navigation"
+			and input_type ~= action_map.gamepadID
+		then
+			NavigateCursorFromSelection(cursor)
+		end
+	end)
+end
+
+
+---- Methods ----
+Methods.GetCursorGUI = function(self : UIPrivateCursor)
+	return self._imageLabel
+end
+
+-- Misc
+
+--< Reorder cursors upon disconnecting a gamepad >--
+
+--< Create ScreenGui object to hold all cursor icons >--
+local CursorScreenGUI = Instance.new("ScreenGUI")
+-- Properties
+CursorScreenGUI.Parent = PlayerGUI
+
+-- We don't want the cursor going byebye after we go into safe areas
+CursorScreenGUI.ClipToDeviceSafeArea = false
+CursorScreenGUI.IgnoreGuiInset = true
+-- Obviously, we want this to render over everything
+CursorScreenGUI.DisplayOrder = 64
+-- Update the RealScreenSize variable
+CursorScreenGUI:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
+	RealScreenSize = CursorScreenGUI.AbsolutePosition
+end)
+
+--> Action maps create info
+type ActionList = {EventSystem.InputActionCreateInfo}
+	
+-- Primary action for the main controller, keyboard, and gamepad.
+local PrimaryActions : ActionList = {
+	-- Cursor navigation
+	{
+		name = "Navigate",
+		bindings = {
+			"Mouse Delta",
+			Enum.KeyCode.Thumbstick1,
+			{
+				Up = Enum.KeyCode.DPadUp,
+				Down = Enum.KeyCode.DPadDown,
+				Left = Enum.KeyCode.DPadLeft,
+				Right = Enum.KeyCode.DPadRight
+			}
+		}
+	},
+	-- Cancel / go back
+	-- Because roblox uses the ESC key, we have to use something else.
+	{
+		name = "Cancel",
+		bindings = {
+			Enum.KeyCode.Backspace,
+			Enum.KeyCode.ButtonB
+		}
+	},
+	{
+		name = "Confirm",
+		bindings = {
+			Enum.KeyCode.Return,
+			Enum.KeyCode.ButtonA,
+		}
+	},
+	-- Touch input will:
+	-- (When touch released)
+	-- • Activate GUI at tap position, if any.
+	--  (When UICursor.mode == "Cursor")
+	-- • Set the cursor to tap position
+	{
+		name = "Touch input",
+		bindings = Enum.UserInputType.Touch
+	}
+}
+
+-- Same thing minus keyboard and touch input.
+local SecondaryActions : ActionList = {
+	{
+		name = "Navigate",
+		bindings = {
+			Enum.KeyCode.Thumbstick1,
+			{
+				Up = Enum.KeyCode.DPadUp,
+				Down = Enum.KeyCode.DPadDown,
+				Left = Enum.KeyCode.DPadLeft,
+				Right = Enum.KeyCode.DPadRight
+			}
+		}
+	},
+	{
+		name = "Cancel",
+		bindings = {Enum.KeyCode.ButtonB}
+	},
+	{
+		name = "Confirm",
+		bindings = {Enum.KeyCode.ButtonA}
+	}
+}
+
+
+PrimaryActionMapCreateInfo = {
+	actions = PrimaryActions
+}
+
+SecondaryActionMapCreateInfo = InputActionSystem.new {
+	actions = SecondaryActions
+}
+--< Module end >--
+return UICursor
