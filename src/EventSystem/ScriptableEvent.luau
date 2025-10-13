@@ -1,7 +1,7 @@
 --!strict
 
 --< Dependencies >--
-local Typeforge = require "Typeforge"
+local Typeforge = require(game:GetService("ReplicatedStorage").Packages.Typeforge)
 --< Module begin >--
 local ScriptableEvent = {}
 
@@ -15,9 +15,9 @@ local ScriptableEvent = {}
 -- immediate is... honestly I don't know but roblox has them so lets add them anyways.
 type EventMode =  "Immediate" | "Deferred"
 
-export type EventListener = {
+export type EventListener<fn_sig = () -> ()> = {
 	-- If nil, the event is no longer connected.
-	read parent: BaseEvent?,
+	read parent: unknown?,
 	StopListening: (self : EventListener) -> (),
 }
 
@@ -25,7 +25,7 @@ export type ScriptableEvent<fn_sig = () -> ()> = {
 	---- Properties ----
 	
 	-- Event mode cannot be changed once instantiated.
-	read mode: EventSubTypeName,
+	read mode: EventMode,
 	-- WARNING:
 	-- The implementation of this property may change at any time.
 	-- This property may be removed at any time.
@@ -35,51 +35,54 @@ export type ScriptableEvent<fn_sig = () -> ()> = {
 	---- Methods ---
 
 	AddListener: (self: ScriptableEvent<fn_sig>, func: fn_sig) -> EventListener,
-	Invoke: (self: ScriptableEvent<fn_sig>, ...: any) -> (),
+	Invoke: (self: ScriptableEvent<fn_sig>, ...any) -> (),
 	-- Invoke without any mode processing. 
 	-- Equivalent of enumerating through the listener list and firing them all.
-	CleanInvoke: (self: ScriptableEvent<fn_sig>, ...: any) -> (),
+	CleanInvoke: (self: ScriptableEvent<fn_sig>, ...any) -> (),
 	RemoveListener: (self: ScriptableEvent<fn_sig>, listener: EventListener) -> (),
-	RemoveAllListeners: (self: ScriptableEvent<fn_sig>) -> ()
+	RemoveAllListeners: (self: ScriptableEvent<fn_sig>) -> (),
+	Destroy: (self: ScriptableEvent<fn_sig>) -> ()
 }
 
-type PrivateScriptableEvent = Typeforge.ReadWrite<ScriptableEvent>;
+type PrivateScriptableEvent = Typeforge.ReadWrite<ScriptableEvent>
+type PrivateEventListener = Typeforge.ReadWrite<EventListener>
 
--- Const --
+---- Const ----
 local DeferredMethods
 local ImmediateMethods
 local ListenerMethods = {
 	StopListening = function(self : EventListener)
-		self.parent:RemoveListener(self)
+		(self.parent :: ScriptableEvent):RemoveListener(self)
 	end
 }
 
 ---- Var ----
 
 -- The free coroutine to reuse to prevent creating new
-local free_coroutine : coroutine
+local FreeThread : thread?
 
 
 ---- Module functions ----
-function ScriptableEvent.New(mode : EventSubTypeName) : ScriptableEvent?
+
+function ScriptableEvent.New(mode : EventMode?) : ScriptableEvent?
 	if mode == "Immediate"
 		or mode == nil
 	then
-		return setmetatable({
+		return (setmetatable({
 			mode = "Immediate",
 			listeners = {}
-		}, DeferredMethods)
+		}, DeferredMethods) :: unknown) :: ScriptableEvent
 	elseif mode == "Deferred" then
 		-- Deferred event
-		return setmetatable({
+		return (setmetatable({
 			mode = mode,
 			listeners = {}
-		}, DeferredMethods)
+		}, DeferredMethods) :: unknown) :: ScriptableEvent
 	else
 		if type(mode) ~= "string" then
 			warn "Parameter mode is not of type \"string\""
 		else
-			warn `Unknown mode {mode}`
+			warn (`Unknown mode {mode}`)
 		end
 		return nil
 	end
@@ -92,12 +95,12 @@ end--New
 local function AddListener(self : PrivateScriptableEvent, func : any)
 	local listener = (setmetatable({
 		parent = self
-	}, listeners) :: unknown) :: EventListener
+	}, ListenerMethods) :: unknown) :: EventListener
 	
 	self.listeners[listener] = func
 end
 
-local function RemoveListener(self : PrivateScriptableEvent, listener : EventListener)
+local function RemoveListener(self : PrivateScriptableEvent, listener : PrivateEventListener)
 	local func = self.listeners[listener]
 
 	if func == nil then
@@ -109,49 +112,54 @@ local function RemoveListener(self : PrivateScriptableEvent, listener : EventLis
 	end
 end
 
-local function RemoveAllListeners(self : ScriptableEvent)
+local function RemoveAllListeners(self : PrivateScriptableEvent)
 	for listener, _ in pairs(self.listeners) do
 		self.listeners[listener] = nil
-		listener.parent = nil
+		(listener :: PrivateEventListener).parent  = nil
 	end
 end
 
-local function CleanInvoke(self : PrivateScriptableEvent, ...any)
+local function CleanInvoke(self : PrivateScriptableEvent, ...: any)
 	for _, callback in pairs(self.listeners) do
 		callback(...)
 	end
 end
 
+--> Immediate mode functions
+
+-- This function is needed to unpack the arguments.
+-- It's either this function, or we unpack arguments via a table.
+local function CallListenerCallback(callback, ...)
+	FreeThread = nil
+	callback(...)
+	FreeThread = coroutine.running()
+end
 -- Call listener for immediate event thread
 local function CallListener()
 	-- We repeat this so the next time the function is called, it will yield again.
 	while true do
 		-- Get the procedure and it's arguments from the yield.
 		-- coroutine.yield's return values are the arguments passed to coroutine.resume.
-		local proc, ... = coroutine.yield()
-		FreeThread = nil
-		proc(args)
-		FreeThread = coroutine.running()
+		CallListenerCallback(coroutine.yield())
 	end	
 end
 
---> Method table
+-- Method tables --
+
 ImmediateMethods = {
 	AddListener = AddListener,
 	RemoveListener = RemoveListener,
 	RemoveAllListeners = RemoveAllListeners,
-	Invoke = function(self : PrivateScriptableEvent, ...: any)
-		self.firedThisFrame = true
-		
+	Invoke = function(self: PrivateScriptableEvent, ...: any)
 		for _, callback in pairs(self.listeners) do
 			if FreeThread == nil then
 				FreeThread = task.spawn(CallListener)
 			end
-			coroutine.resume(FreeThread, callback, ...)
+			coroutine.resume(FreeThread :: thread, callback, ...)
 		end
 	end,--Invoke
 	CleanInvoke = CleanInvoke
-} ImmediateMethods.__index = ImmediateMethods
+} ImmediateMethods.__index = ImmediateMethods;
 
 DeferredMethods = {
 	AddListener = AddListener,
