@@ -1,0 +1,4 @@
+
+[submodule "Extern/MathExtended"]
+	path = Extern/MathExtended
+	url = https://github.com/junkiejoe/MathExtended

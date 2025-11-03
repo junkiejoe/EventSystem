@@ -1,15 +1,13 @@
 {
-  "name": "EventSystem",
-  "tree": {
-    "$className": "DataModel",
-    "$path": "src",
-    
-    "ReplicatedStorage": {
+	"name": "EventSystem",
+	"tree": {
+		"$className": "DataModel",
+		"ReplicatedStorage": {
 			"$className": "ReplicatedStorage",
-			"Packages": {
-        "$ignoreUnknownInstances": true,
-				"$path": "Packages"
+			"EventSystem": {
+				"$className": "Folder",
+				"$path": "src/EventSystem"
 			}
 		}
-  }
+	}
 }

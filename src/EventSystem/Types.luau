@@ -1,27 +1,4 @@
 --!strict
---[[
-	MIT License
-
-	Copyright (c) [year] [fullname]
-
-	Permission is hereby granted, free of charge, to any person obtaining a copy
-	of this software and associated documentation files (the "Software"), to deal
-	in the Software without restriction, including without limitation the rights
-	to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-	copies of the Software, and to permit persons to whom the Software is
-	furnished to do so, subject to the following conditions:
-
-	The above copyright notice and this permission notice shall be included in all
-	copies or substantial portions of the Software.
-
-	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-	IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-	FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-	AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-	LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-	SOFTWARE.
-]]--
 
 --< Dependencies >--
 local ScriptableEvent = require(script.Parent.ScriptableEvent)
@@ -47,14 +24,11 @@ export type CompositeInputBinding = {
 -- Context passed to InputStateChangedCallback callback procedures.
 -- It's the same as InputObject, but it is creatable by us.
 export type InputActionCallBackContext = {
-	-- When InputAction enabled is set to false, this will be set to
-	-- Enum.KeyCode.Unknown
+	-- When InputAction enabled is set to false, this will be set to Enum.KeyCode.Unknown.
 	key: Enum.KeyCode,
-	-- When InputAction enabled is set to false, this will be set to
-	-- Enum.UserInputType.None
+	-- When InputAction enabled is set to false, this will be set to Enum.UserInputType.None.
 	inputType: Enum.UserInputType,
-	-- When InputAction enabled is set to false, this will be set to
-	-- Enum.UserInputState.Cancel
+	-- When InputAction enabled is set to false, this will be set to Enum.UserInputState.Cancel.
 	state: Enum.UserInputState,
 	-- When InputAction enabled is set to false, this will be set to
 	-- Vector3.zero if the last value type was a vector, or
@@ -81,15 +55,15 @@ export type InputActionMapCreateInfo = {
 export type InputAction = {
 	---- Properties ----
 	
-	read name: string,
+	name: string,
 	parent: InputActionMap,
 	-- If enabled is false, bindings associated with this action will not update it's state.
 	enabled: boolean,
 	-- Whether or not the action's state has changed this frame.
-	read changedThisFrame: boolean,
-	read value: number | Vector3,
-	read valueOld: number | Vector3,
-	read valueDelta: number | Vector3,
+	changedThisFrame: boolean,
+	value: number | Vector3,
+	valueOld: number | Vector3,
+	valueDelta: number | Vector3,
 	
 	StateChanged: ScriptableEvent.ScriptableEvent<InputStateChangedCallback>,
 
@@ -102,7 +76,7 @@ export type InputAction = {
 export type InputActionMap = {
 	---- Properties ----
 	
-	read name: string,
+	name: string,
 	enabled: boolean,
 	-- The gamepad to restrict gamepad input to.
 	-- If nil, accepts input from any binding.
@@ -132,11 +106,11 @@ export type UIState =
 
 export type UICallbackContext = {
 	-- The state of the current UI
-	read state: UIState,
+	state: UIState,
 	-- When fired via a handler, is the UICursor that triggered it.
-	read cursor: UICursor?,
+	cursor: UICursor?,
 	-- Whether or not the cursor was in the frame when the event was processed.
-	read inFrame: boolean,
+	inFrame: boolean,
 	--clickType: 
 }
 
@@ -144,7 +118,7 @@ export type UIBehavior = {
 	---- Properties ----
 	
 	-- The name of the UIBehavior subclass, or UIBehavior if none.
-	read behaviorName: BehaviorName,
+	behaviorName: BehaviorName,
 	-- The Roblox GuiObject that the UIBehavior instance will operate on.
 	--
 	-- The UIBehavior will use the following properties from the guiObject:
@@ -155,16 +129,16 @@ export type UIBehavior = {
 	--  • The Active property, when false, the behavior will not be evaluated.
 	--  • The Visible property, when false, the behavior will not be evaluated.
 	--  • The ZIndex property, which when navigating, will give it a priority boost.
-	read guiObject: GuiObject,
-	read currentState: UIState,
+	guiObject: GuiObject,
+	currentState: UIState,
 
 	-- Events --
 	-- These events should not be called manually, and are meant to be set by the handler methods.
 	
 	-- Depending on the mode of the UICursor, the value that position represents will change.
 	-- When mode is "Cursor", it represents the 
-	read StateChanged: ScriptableEvent.ScriptableEvent<(context: UICallbackContext) -> ()>,
-	read CursorPositionChanged: ScriptableEvent.ScriptableEvent<(cursor: UICursor, deltaTime: number?) -> ()>,
+	StateChanged: ScriptableEvent.ScriptableEvent<(context: UICallbackContext) -> ()>,
+	CursorPositionChanged: ScriptableEvent.ScriptableEvent<(cursor: UICursor, deltaTime: number?) -> ()>,
 
 	---- Methods ----
 
@@ -196,7 +170,7 @@ export type UIBehavior = {
 export type UISwitchBehavior = {
 	-- The current state of the switch.
 	-- To change the switch state, use the method TurnSwitchOnOrOff.
-	read isOn: boolean,
+	isOn: boolean,
 	Flipped: ScriptableEvent.ScriptableEvent<(isOn: boolean) -> ()>,
 	-- Set the switch to be on or off.
 	-- If state is nil, it will flip the switch from it's current state.
@@ -215,7 +189,7 @@ export type UISliderBehavior = {
 	-- The handle to use as a visual indicator for the slider.
 	-- This property cannot be set directly, and UISliderHandle cannot be constructed
 	-- outside the UISliderBehavior class
-	read handleObject: UISliderHandle?,
+	handleObject: UISliderHandle?,
 	-- The axis the slider is aligned to.
 	-- Only input from the axis is relevant.
 	sliderAxis: Enum.Axis,
@@ -225,9 +199,9 @@ export type UISliderBehavior = {
 	
 	progressMin: number,
 	progressMax: number,
-	read progressCurrent: number,
+	progressCurrent: number,
 	-- The progressed normalized (from 0 to 1)
-	read progressNorm: number,
+	progressNorm: number,
 	ProgressChanged: ScriptableEvent.ScriptableEvent<(progress: number) -> ()>,
 
 	---- Methods ----
@@ -259,7 +233,7 @@ export type UICursor = {
 	-- The cursor will not be evaluated.
 	mode: "Cursor" | "Navigation" | "Disabled",
 	-- If true, signifies that the cursor is the primary cursor to be used for the devices input detection.
-	read isPrimary: boolean,
+	isPrimary: boolean,
 	-- The currently selected UIBehavior.
 	-- Attempting to select a UIBehavior who's GuiObject.Selectable property is false will
 	-- throw an error.
@@ -276,12 +250,12 @@ export type UICursor = {
 	-- When mode in navigation mode,
 	-- this will evaluate to the center of the currently selected object.
 	-- When there is no selection, it will be the last recorded position.
-	read position: Vector2,
-	read positionDelta: Vector2,
+	position: Vector2,
+	positionDelta: Vector2,
 	-- The ImageLabel representing the UICursor's Icon.
 	-- The used images are determined by the cursors state
 	-- and the UICursor.cursorIcons image strings,
-	read imageLabel: ImageLabel,
+	imageLabel: ImageLabel,
 	-- The icons used by the cursor's ImageLabel.
 	-- Each member should be a valid rbxasset.
 	cursorIcons: {
@@ -297,3 +271,26 @@ export type UICursor = {
 }
 
 return nil
+--[[
+	MIT License
+
+	Copyright (c) 2025 JunkieJoe
+
+	Permission is hereby granted, free of charge, to any person obtaining a copy
+	of this software and associated documentation files (the "Software"), to deal
+	in the Software without restriction, including without limitation the rights
+	to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+	copies of the Software, and to permit persons to whom the Software is
+	furnished to do so, subject to the following conditions:
+
+	The above copyright notice and this permission notice shall be included in all
+	copies or substantial portions of the Software.
+
+	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+	IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+	FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+	AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+	LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+	SOFTWARE.
+]]--

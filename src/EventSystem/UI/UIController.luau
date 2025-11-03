@@ -1,6 +1,5 @@
 --< Dependencies >--
 local Types = require(script.Parent.Parent.Types)
-local Typeforge = require(game:GetService("ReplicatedStorage").Packages.Typeforge)
 local InputActionSystem = require(script.Parent.Parent.InputActionSystem)
 local InputMaps = require(script.Parent.InputMap)
 local Shared = require(script.Parent.Parent.Shared)
@@ -8,7 +7,6 @@ local Shared = require(script.Parent.Parent.Shared)
 local UICursor = {}
 ---- Types ----
 type UICursor = Types.UICursor
-type PrivateUICursor = Typeforge.ReadWrite<UICursor>;
 ---- Const ----
 local UIBehaviorObjects = Shared.UIBehaviorObjects
 local Methods

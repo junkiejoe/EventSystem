@@ -1,0 +1,6 @@
+Every PacketDataType codec should always offset a buffer by n + 1 to account for the type ID that every buffer should have. The offset parameter already handles this, though.
+
+# Plans
+
+## Unions
+Unions would follow the same way the do in C, which is that they use the size of the largest data structure in the union. It is prefixed by  a uint16_t representing the type ID.

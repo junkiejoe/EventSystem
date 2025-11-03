@@ -1,7 +1,4 @@
 --!strict
-
---< Dependencies >--
-local Typeforge = require(game:GetService("ReplicatedStorage").Packages.Typeforge)
 --< Module begin >--
 local ScriptableEvent = {}
 
@@ -12,25 +9,25 @@ local ScriptableEvent = {}
 -- and attempts to reuse threads inorder to prevent unneeded thread creations.
 -- Deferred will queue all the events to run at the next execution point.
 -- Deferred will not try to reuse threads. The benefit of using deferred over
--- immediate is... honestly I don't know but roblox has them so lets add them anyways.
+-- immediate is... honestly, I don't know but roblox has them so lets keep them anyways.
 type EventMode =  "Immediate" | "Deferred"
 
 export type EventListener<fn_sig = () -> ()> = {
 	-- If nil, the event is no longer connected.
-	read parent: unknown?,
-	StopListening: (self : EventListener) -> (),
+	parent: unknown?,
+	StopListening: (self : EventListener<fn_sig>) -> (),
 }
 
 export type ScriptableEvent<fn_sig = () -> ()> = {
 	---- Properties ----
 	
 	-- Event mode cannot be changed once instantiated.
-	read mode: EventMode,
+	mode: EventMode,
 	-- WARNING:
 	-- The implementation of this property may change at any time.
 	-- This property may be removed at any time.
 	-- This property may go private at any time.
-	read listeners: {[EventListener]: fn_sig},
+	listeners: {[EventListener]: fn_sig},
 
 	---- Methods ---
 
@@ -44,10 +41,8 @@ export type ScriptableEvent<fn_sig = () -> ()> = {
 	Destroy: (self: ScriptableEvent<fn_sig>) -> ()
 }
 
-type PrivateScriptableEvent = Typeforge.ReadWrite<ScriptableEvent>
-type PrivateEventListener = Typeforge.ReadWrite<EventListener>
 
----- Const ----
+	---- Const ----
 local DeferredMethods
 local ImmediateMethods
 local ListenerMethods = {
@@ -64,20 +59,20 @@ local FreeThread : thread?
 
 ---- Module functions ----
 
-function ScriptableEvent.New(mode : EventMode?) : ScriptableEvent?
+function ScriptableEvent.New<T>(mode : EventMode?) : ScriptableEvent<T>?
 	if mode == "Immediate"
 		or mode == nil
 	then
 		return (setmetatable({
 			mode = "Immediate",
 			listeners = {}
-		}, DeferredMethods) :: unknown) :: ScriptableEvent
+		}, DeferredMethods) :: unknown) :: ScriptableEvent<T>
 	elseif mode == "Deferred" then
 		-- Deferred event
 		return (setmetatable({
 			mode = mode,
 			listeners = {}
-		}, DeferredMethods) :: unknown) :: ScriptableEvent
+		}, DeferredMethods) :: unknown) :: ScriptableEvent<T>
 	else
 		if type(mode) ~= "string" then
 			warn "Parameter mode is not of type \"string\""
@@ -92,7 +87,7 @@ end--New
 
 --> Functions shared between both
 
-local function AddListener(self : PrivateScriptableEvent, func : any)
+local function AddListener(self : ScriptableEvent, func : any)
 	local listener = (setmetatable({
 		parent = self
 	}, ListenerMethods) :: unknown) :: EventListener
@@ -100,7 +95,7 @@ local function AddListener(self : PrivateScriptableEvent, func : any)
 	self.listeners[listener] = func
 end
 
-local function RemoveListener(self : PrivateScriptableEvent, listener : PrivateEventListener)
+local function RemoveListener(self : ScriptableEvent, listener : EventListener)
 	local func = self.listeners[listener]
 
 	if func == nil then
@@ -112,14 +107,14 @@ local function RemoveListener(self : PrivateScriptableEvent, listener : PrivateE
 	end
 end
 
-local function RemoveAllListeners(self : PrivateScriptableEvent)
+local function RemoveAllListeners(self : ScriptableEvent)
 	for listener, _ in pairs(self.listeners) do
 		self.listeners[listener] = nil
-		(listener :: PrivateEventListener).parent  = nil
+		(listener :: EventListener).parent  = nil
 	end
 end
 
-local function CleanInvoke(self : PrivateScriptableEvent, ...: any)
+local function CleanInvoke(self : ScriptableEvent, ...: any)
 	for _, callback in pairs(self.listeners) do
 		callback(...)
 	end
@@ -150,7 +145,7 @@ ImmediateMethods = {
 	AddListener = AddListener,
 	RemoveListener = RemoveListener,
 	RemoveAllListeners = RemoveAllListeners,
-	Invoke = function(self: PrivateScriptableEvent, ...: any)
+	Invoke = function(self: ScriptableEvent, ...: any)
 		for _, callback in pairs(self.listeners) do
 			if FreeThread == nil then
 				FreeThread = task.spawn(CallListener)
@@ -165,7 +160,7 @@ DeferredMethods = {
 	AddListener = AddListener,
 	RemoveListener = RemoveListener,
 	RemoveAllListeners = RemoveAllListeners,
-	Invoke = function(self : PrivateScriptableEvent, ...: any)
+	Invoke = function(self : ScriptableEvent, ...: any)
 		-- IDK man I guess this is better according to Roblox?
 		for _, callback in pairs(self.listeners) do
 			task.defer(callback, ...)
