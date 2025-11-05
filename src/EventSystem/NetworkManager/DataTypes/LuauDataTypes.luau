@@ -3,104 +3,98 @@ local DataTypes = require(script.Parent.Parent.DataTypes)
 
 ---- Lua data types  ---
 
-DataTypes.Number = {
+DataTypes:AddType {
+	name = "Number",
 	ID = 1,
 	size = 8,
 	typeName = "number",
 	codec = {
-		Encode = function(data: number): buffer
-			local data_type = type(data)
-			
-			local out = buffer.create(9)
-			buffer.writef64(out, 1, number)
-			return out
+		Encode = function(data, to, offset)
+			buffer.writef64(to, offset, data)
+			return false
 		end,
 		
-		Decode = function(data: buffer): number
-			return buffer.readf64(data, 1)
+		Decode = function(data, offset)
+			return buffer.readf64(data, offset)
 		end
 	}
 }
 
-DataTypes.String = {
+DataTypes:AddType {
+	name = "String",
 	ID = 2,
-	size = -1,
+	size = 0,
 	typeName = "string",
 	codec = {
-		Encode = function(data: string): buffer
-			local data_type = type(data)
-
-			local out = buffer.create(string.len(data) + 1)
-			buffer.writestring(out, 1, data)
-			return out
+		Encode = function(data, to, offset)
+			buffer.writestring(to, offset, data)
+			return false
 		end,
 		
-		Decode = function(data: buffer): string
-			return buffer.readstring(data, 1)
+		Decode = function(data, offset, _, size)
+			return buffer.readstring(data, offset, size :: number)
 		end
 	}
 }
 
-DataTypes.Boolean = {
+DataTypes:AddType {
+	name = "Boolean",
 	ID = 3,
 	-- Use a single byte to represent boolean values
 	size = 1,
 	typeName = "boolean",
 	codec = {
-		Encode = function(data: boolean): buffer
-			local data_type = type(data)
-
-			local out = buffer.create(8)
-			buffer.writeu8(out, 0, data and 1 or 0)
+		Encode = function(data, to, offset)
+			buffer.writeu8(to, offset, data and 1 or 0)
+			return false
 		end,
 		
-		Decode = function(data: buffer): boolean
-			local data_type = type(data)
-
-			return buffer.readu8(data, 0) > 0 and true or false
+		Decode = function(data, offset)
+			return buffer.readu8(data, offset) > 0 and true or false
 		end
 	}
 }
 
 ---- Luau data types  ---
 
-DataTypes.Vector = {
+DataTypes:AddType {
+	name = "Vector",
 	ID = 4,
 	size = 12,
-	typeName == "vector",
+	typeName = "vector",
 	codec = {
-		Encode = function(data: vector): buffer
+		Encode = function(data, to, offset)
 			local data_type = type(data)
-			
-			local out = buffer.create(12)
 
-			buffer.writef32(out, 1, vector.x)
-			buffer.writef32(out, 5, vector.y)
-			buffer.writef32(out, 9, vector.z)
+			buffer.writef32(to, offset, data.x)
+			buffer.writef32(to, offset + 4, data.y)
+			buffer.writef32(to, offset + 8, data.z)
 			
-			return out
+			return false
 		end,
 		
-		Decode = function(data: buffer): vector
+		Decode = function(data, offset)
 
 			return vector.create(
-				buffer.readf32(data, 1, data),
-				buffer.readf32(data, 5, data),
-				buffer.readf32(data, 9, data))
+				buffer.readf32(data, offset),
+				buffer.readf32(data, offset + 4),
+				buffer.readf32(data, offset + 8))
 		end
 	}
 }
 
-DataTypes.Buffer = {
+-- lol
+DataTypes:AddType {
+	name = "Buffer",
 	ID = 5,
-	typeName == "buffer"
-	size = -1,
+	typeName = "buffer",
+	size = 0,
 	codec = {
-		Encode = function(data: buffer): buffer
-			return data
+		Encode = function(data)
+			return false
 		end,
 		
-		Decode = function(data: buffer): buffer
+		Decode = function(data)
 			return data
 		end
 	}

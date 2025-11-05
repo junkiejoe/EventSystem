@@ -1,6 +1,25 @@
-Every PacketDataType codec should always offset a buffer by n + 1 to account for the type ID that every buffer should have. The offset parameter already handles this, though.
+# Array type
+Do not pass non-contiguous arrays to invocation methods. It breaks the length operator.
 
-# Plans
+# Creating a new built in data type
+The creation of a new data type is handled by DataTypes:AddType.
+Special types (such as array and record) should have their own encode/decode signature.
+All data are defined in the DataTypes folder, and loaded by the NetworkManager module.
+(Thanks for still not having a way to have a script run on both client and servers)
 
-## Unions
-Unions would follow the same way the do in C, which is that they use the size of the largest data structure in the union. It is prefixed by  a uint16_t representing the type ID.
+## DataType ID
+Every built in should have it's own unique ID.
+This allows it to be correctly identified in a buffer without using a string to reference it.
+> Named identifiers must also be unique.
+> This also goes for user defined types.
+
+## DataType size
+DataTypes that do not have fixed size (such as arrays) should set their size to 0.
+For fixed size data types, the size should represent the size of data structure in bytes.
+
+## DataType type name
+This is the name of the Lua(u)/Roblox data type as returned by the typeof function.
+
+# Limits
+Only 255 unique data types may exist.
+Some of these slots are taken by the built in data types.

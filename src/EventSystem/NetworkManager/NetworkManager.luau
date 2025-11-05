@@ -116,7 +116,7 @@ function NetworkManager.NewRecordType(info: RecordCreateInfo): DataTypes.RecordM
 end--NewRecordType
 	
 -- [Server] Create a new packet type on the server and replicate it to the client.
-@checked
+@checked @native
 function NetworkManager.NewPacketType(info: PacketTypeCreateInfo): PacketType?
 
 	if info.name == nil then
